@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Змейка Онлайн</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            margin: 0;
+            background: linear-gradient(to bottom, #87CEFA, #F0F0F0);
+            font-family: Arial, sans-serif;
+        }
+        h1 {
+            margin: 10px 0;
+            color: #333;
+            font-size: 24px;
+        }
+        canvas {
+            border: 4px solid #333;
+            background: repeating-linear-gradient(45deg, #A0D2EB, #A0D2EB 20px, #87CEEB 20px, #87CEEB 40px);
+        }
+        #score {
+            margin: 10px;
+            font-size: 16px;
+            color: #333;
+        }
+        .custom-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 22px;
+            color: #333;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 25px;
+            border: 3px solid #333;
+            border-radius: 15px;
+            display: none;
+            text-align: center;
+            min-width: 250px;
+        }
+        #settingsButton {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: #f0f0f0;
+            border: 2px solid #333;
+            border-radius: 5px;
+            padding: 8px;
+            cursor: pointer;
+        }
+        #settingsMenu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border: 2px solid #333;
+            border-radius: 10px;
+            padding: 15px;
+            display: none;
+            text-align: center;
+        }
+        #settingsMenu button {
+            margin: 5px;
+            padding: 8px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Змейка Онлайн</h1>
+    <div id="score">
+        <span style="color: orange;">&#x1F7E7;</span> Счёт: 0
+    </div>
+    <canvas id="gameCanvas" width="900" height="600"></canvas>
+    <div id="pauseMessage" class="custom-message">
+        Игра на паузе.<br>Нажмите пробел, чтобы продолжить.
+    </div>
+    <div id="startMessage" class="custom-message">
+        Добро пожаловать в "Змейка Онлайн"!<br>Управление: стрелки.<br>Цель: Съедайте оранжевые кубики, избегая стен и собственного хвоста.<br>Нажмите Enter, чтобы начать игру.
+    </div>
+    <div id="gameOverMessage" class="custom-message">
+        Вы проиграли! Нажмите Enter, чтобы начать заново.
+    </div>
+    <div id="settingsMenu">
+        <p>Меню настроек:</p>
+        <p>Тема:</p>
+        <button id="blueTheme">Голубая тема</button>
+        <button id="greenTheme">Зелёная тема</button>
+        <button id="redTheme">Красная тема</button>
+        <button id="yellowTheme">Жёлтая тема</button>
+        <button id="toggleFullscreen" onclick="toggleFullscreen()">Развернуть на весь экран</button>
+        <button id="closeSettings">Закрыть</button>
+    </div>
+    <div id="settingsButton">⚙️ Настройки</div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const tileSize = 30;
+        const rows = canvas.height / tileSize;
+        const cols = canvas.width / tileSize;
+
+        let snake = [
+            { x: 10, y: 10 },
+        ];
+        let direction = { x: 0, y: 0 };
+        let lastDirection = { x: 0, y: 0 };
+        let food = generateFoodPosition();
+        let gameOver = false;
+        let score = 0;
+        let paused = false;
+
+        const gameLoopInterval = 125;  
+
+        const scoreElement = document.getElementById('score');
+        const pauseMessage = document.getElementById('pauseMessage');
+        const startMessage = document.getElementById('startMessage');
+        const gameOverMessage = document.getElementById('gameOverMessage');
+        const settingsButton = document.getElementById('settingsButton');
+        const settingsMenu = document.getElementById('settingsMenu');
+        const closeSettingsButton = document.getElementById('closeSettings');
+        const fullscreenButton = document.getElementById('toggleFullscreen');
+
+        function drawRect(x, y, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+        }
+
+        function generateFoodPosition() {
+            let newFood;
+            do {
+                newFood = { x: Math.floor(Math.random() * cols), y: Math.floor(Math.random() * rows) };
+            } while (snake.some(segment => segment.x === newFood.x && segment.y === newFood.y));
+            return newFood;
+        }
+
+        function drawGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawRect(food.x, food.y, '#FF9B00');
+            for (let i = 0; i < snake.length; i++) {
+                const color = i === 0 ? '#3A5FCD' : '#32CD32';
+                drawRect(snake[i].x, snake[i].y, color);
+            }
+        }
+
+        function updateSnake() {
+            if (direction.x === 0 && direction.y === 0) return;
+
+            const head = { 
+                x: snake[0].x + direction.x, 
+                y: snake[0].y + direction.y 
+            };
+
+            if (
+                head.x < 0 || head.y < 0 || 
+                head.x >= cols || head.y >= rows || 
+                snake.some(segment => segment.x === head.x && segment.y === head.y)
+            ) {
+                gameOver = true;
+                gameOverMessage.style.display = 'block';
+                return;
+            }
+
+            snake.unshift(head);
+            if (head.x === food.x && head.y === food.y) {
+                score++;
+                scoreElement.innerHTML = `<span style='color: orange;'>&#x1F7E7;</span> Счёт: ${score}`;
+                food = generateFoodPosition();
+            } else {
+                snake.pop();
+            }
+
+            lastDirection = direction; 
+        }
+
+        function gameLoop() {
+            if (gameOver || paused) return;
+            updateSnake();
+            drawGame();
+        }
+
+        document.addEventListener('keydown', event => {
+            if (startMessage.style.display === 'block') {
+                if (event.key === 'Enter') {
+                    startMessage.style.display = 'none';
+                    setInterval(gameLoop, gameLoopInterval);
+                }
+                return;
+            }
+
+            if (gameOverMessage.style.display === 'block') {
+                if (event.key === 'Enter') {
+                    document.location.reload();
+                }
+                return;
+            }
+
+            if (event.key === 'ArrowUp' && lastDirection.y !== 1) {
+                direction = { x: 0, y: -1 };
+            } else if (event.key === 'ArrowDown' && lastDirection.y !== -1) {
+                direction = { x: 0, y: 1 };
+            } else if (event.key === 'ArrowLeft' && lastDirection.x !== 1) {
+                direction = { x: -1, y: 0 };
+            } else if (event.key === 'ArrowRight' && lastDirection.x !== -1) {
+                direction = { x: 1, y: 0 };
+            }
+
+            if (event.key === ' ' && !gameOver) {
+                paused = !paused;
+                pauseMessage.style.display = paused ? 'block' : 'none';
+            }
+        });
+
+        settingsButton.addEventListener('click', () => {
+            settingsMenu.style.display = 'block';
+        });
+
+        closeSettingsButton.addEventListener('click', () => {
+            settingsMenu.style.display = 'none';
+        });
+
+        document.getElementById('blueTheme').addEventListener('click', () => {
+            document.body.style.background = 'linear-gradient(to bottom, #87CEFA, #F0F0F0)';
+            canvas.style.background = 'repeating-linear-gradient(45deg, #A0D2EB, #A0D2EB 20px, #87CEEB 20px, #87CEEB 40px)';
+            settingsMenu.style.display = 'none';
+        });
+
+        document.getElementById('greenTheme').addEventListener('click', () => {
+            document.body.style.background = 'linear-gradient(to bottom, #98FB98, #F0F0F0)';
+            canvas.style.background = 'repeating-linear-gradient(45deg, #A0E7A0, #A0E7A0 20px, #8FBC8F 20px, #8FBC8F 40px)';
+            settingsMenu.style.display = 'none';
+        });
+
+        document.getElementById('redTheme').addEventListener('click', () => {
+            document.body.style.background = 'linear-gradient(to bottom, #FF6F61, #F0F0F0)';
+            canvas.style.background = 'repeating-linear-gradient(45deg, #F8C0C0, #F8C0C0 20px, #FF7F7F 20px, #FF7F7F 40px)';
+            settingsMenu.style.display = 'none';
+        });
+
+        document.getElementById('yellowTheme').addEventListener('click', () => {
+            document.body.style.background = 'linear-gradient(to bottom, #F5E1A4, #F0F0F0)';
+            canvas.style.background = 'repeating-linear-gradient(45deg, #F5E1A4, #F5E1A4 20px, #F9D92A 20px, #F9D92A 40px)';
+            settingsMenu.style.display = 'none';
+        });
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+                fullscreenButton.textContent = 'Выйти из полноэкранного режима';
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                    fullscreenButton.textContent = 'Развернуть на весь экран';
+                }
+            }
+        }
+
+        startMessage.style.display = 'block';
+    </script>
+</body>
+</html>
